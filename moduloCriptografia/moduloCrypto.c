@@ -6,6 +6,7 @@
 #include <linux/uaccess.h>   
 #include <linux/mutex.h>
 #include <linux/crypto.h>
+#include <crypto/internal/hash.h>
 
    
 #define DEVICE_NAME "moduloCrypto"   
