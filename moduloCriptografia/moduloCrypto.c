@@ -37,6 +37,26 @@ static int moduloCrypto_hash(char *dados);
 void textoParaHexa(char* texto, char* hexa, int tam);
 void hexaParaTexto(char* texto, char* hexa);
 
+// Adding struct to calculate hash
+struct sdesc {
+    struct shash_desc shash;
+    char ctx[];
+}
+
+static struct sdesc init_sdesc(struct crypto_shash *alg) {
+    struct sdesc sdesc;
+    int size;
+
+    size = sizeof(struct shash_desc) + crypto_shash_descsize(alg);
+    sdesc = kmalloc(size, GFP_KERNEL);
+
+    if (!sdesc) // if the struct is not allocated, out of memory error
+        return ERR_PTR(-ENOMEM)
+
+    sdesc->shash.tfm = alg;
+    sdesc->shash.flags = 0x0;
+    return sdesc;
+}
 
 static struct file_operations fops =
 {
@@ -138,6 +158,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 		break;
 
 		case 'h':
+            pr_info("moduloCrypto: Fazendo hash dos dados convertidos");
 			moduloCrypto_hash(dados_convertidos);			
 		break;
 
@@ -170,6 +191,19 @@ static void moduloCrypto_decifrar(char *dados)
 
 static int moduloCrypto_hash(char *dados)
 {
+    struct sdesc sdesc;
+    int ret;
+
+    sdesc = init_sdesc(alg);
+
+    if (IS_ERR(sdesc)) {
+        pr_info("trusted_key: can't alloc %s\n", hash_alg);
+        return PTR_ERR(sdesc);
+    }
+
+    ret = crypto_shash_digest(&sdesc->shash, data, datalen, digest);
+    kfree(sdesc);
+    return ret;
 }
 
 void hexaParaTexto(char *texto, char *hexa)
