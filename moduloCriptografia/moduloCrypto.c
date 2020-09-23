@@ -7,6 +7,7 @@
 #include <linux/mutex.h>
 #include <linux/crypto.h>
 #include <crypto/internal/hash.h>
+#include <asm/checksum.h>
 
    
 #define DEVICE_NAME "moduloCrypto"   
