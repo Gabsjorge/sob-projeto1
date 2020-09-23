@@ -1,17 +1,23 @@
-#include <linux/init.h>         
-#include <linux/module.h>       
-#include <linux/device.h>       
-#include <linux/kernel.h>       
-#include <linux/fs.h>           
-#include <linux/uaccess.h>   
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/device.h>
+#include <linux/kernel.h>
+#include <linux/fs.h> 
+#include <linux/uaccess.h>
 #include <linux/mutex.h>
 #include <linux/crypto.h>
-
+#include <linux/mm.h>
+#include <linux/scatterlist.h>
+#include <crypto/skcipher.h>
+#include <crypto/hash.h>
    
 #define DEVICE_NAME "moduloCrypto"   
 #define CLASS_NAME "moduloCrypto"  
 #define CRYPTO_BLOCK_SIZE 16 
-#define MAX_MESSAGE	256     
+#define TAM_MAX	256
+#define CRYPTO_skcipher_MODE_CBC 0
+#define CRYPTO_skcipher_MODE_MASK 0     
 
 MODULE_LICENSE("GPL");                                       
 MODULE_AUTHOR("Beatriz Oliveira, Gabriela Jorge, José Victor Pires");                                
@@ -19,13 +25,17 @@ MODULE_DESCRIPTION("Crypto Device Driver")
 MODULE_VERSION("1.0");                                        
 
 static int majorNumber;                        
-static char message[MAX_MESSAGE] = {0};                
+static char message[TAM_MAX] = {0};                
 static short size_of_message;            
 static struct class*  moduloCryptoClass = NULL;    
 static struct device* moduloCryptoDevice = NULL;  
-static char *iv;
-static char *key;
 static DEFINE_MUTEX(moduloCrypto_mutex);
+//static char key_aux[16];
+//static char iv_aux[16];
+static char key[17];
+static char iv[17];
+module_param_string(key,key,17,0);		//To allow arguments to be passed to your module, declare the variables that will take the values of the command line 
+module_param_string(iv,iv,17,0);  		//arguments as global and then use the module_param() macro, (defined in linux/moduleparam.h) to set the mechanism up
 
 static int     dev_open(struct inode *, struct file *);
 static int     dev_release(struct inode *, struct file *);
@@ -36,6 +46,7 @@ static int moduloCrypto_decifrar(char *dados);
 static int moduloCrypto_hash(char *dados);
 void textoParaHexa(char* texto, char* hexa, int tam);
 void hexaParaTexto(char* texto, char* hexa);
+static void hexdump(unsigned char *buf, unsigned int len);
 
 
 static struct file_operations fops =
@@ -76,10 +87,10 @@ static int __init moduloCrypto_init(void) {
         printk(KERN_ALERT "Failed to create the device\n");
         return PTR_ERR(moduloCryptoDevice);
     }
-    printk(KERN_INFO "moduloCrypto: device class created correctly\n");       //Inicializou corretamente
 	
 	mutex_init(&moduloCrypto_mutex);  //mutex sendo inicializado
 	
+	printk(KERN_INFO "moduloCrypto: device class created correctly\n");       //Inicializou corretamente
 	
     return 0;
 }
@@ -124,9 +135,25 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
 
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {   //n esta completa 
     
-	char operacao, dados_convertidos[MAX_MESSAGE] = {0}, dados[MAX_MESSAGE] = {0};
+	int i, len_buffer;
+	char operacao, dados_convertidos[TAM_MAX] = {0}, dados[TAM_MAX] = {0};
+	
+	sprintf(message, "%s(%zu letters)", buffer, len);  
+	pr_info("moduloCrypto: Received message: %s\n", message);
+	
+	operacao = message[0];
+	
+	for(i = 0; i < 16; i++){
+		data[i] = message[i+2];
+	}
+
+	message[len-2] = '\0';
 	
 	hexaParaTexto(dados_convertidos, dados);
+	
+	pr_info("moduloCrypto: Received data: %s\n", dados);
+	pr_info("moduloCrypto: Converted data: %s\n", dados_convertidos);	
+	
 
 	switch(operacao){
 		case 'c': 
@@ -142,12 +169,15 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 		break;
 
 		default:
-			pr_info("moduloCrypto: Invalid operation ['%c']...\n", operacao);
+			pr_info("moduloCrypto: ['%c'] is an invalid operation ...\n", operacao);
 			return 0;
 		break;
 	}
+	
+	size_of_message = strlen(message);                 // store the length of the stored message
+	printk(KERN_INFO "moduloCrypto: Received %zu characters from the user\n", len);
 
-	return;
+	return len;
 }
 
 static int dev_release(struct inode *inodep, struct file *filep) {
@@ -177,7 +207,7 @@ void hexaParaTexto(char *texto, char *hexa)
     
 	int count = 0, i;
 	long num;
-	char msg[MAX_MESSAGE] = {0}, aux[3];
+	char msg[TAM_MAX] = {0}, aux[3];
                  
     for(i = 0; i < strlen(hexa); i++)
     {
@@ -207,6 +237,13 @@ void textoParaHexa(char* texto, char* hexa, int tam)
 	hexa[i] = 0;
 }
 
+static void hexdump(unsigned char *buf, unsigned int len) //O len está recebendo o tamanho da scatterlist
+{
+   while (len--)
+		printk("%02x", *buf++);
+
+	printk("\n");
+}
 
 module_init(moduloCrypto_init);
 module_exit(moduloCrypto_exit);
