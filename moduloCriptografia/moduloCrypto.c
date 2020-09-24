@@ -6,14 +6,13 @@
 #include <linux/uaccess.h>   
 #include <linux/mutex.h>
 #include <linux/crypto.h>
-#include <crypto/internal/hash.h>
-#include <asm/checksum.h>
-
+#include <crypto/hash.h>
    
 #define DEVICE_NAME "moduloCrypto"   
 #define CLASS_NAME "moduloCrypto"  
 #define CRYPTO_BLOCK_SIZE 16 
-#define MAX_MESSAGE	256     
+#define MAX_MESSAGE	256
+#define SHA1_DIG_SIZ 32     
 
 MODULE_LICENSE("GPL");                                       
 MODULE_AUTHOR("Beatriz Oliveira, Gabriela Jorge, José Victor Pires");                                
@@ -38,27 +37,6 @@ static int moduloCrypto_decifrar(char *dados);
 static int moduloCrypto_hash(char *dados);
 void textoParaHexa(char* texto, char* hexa, int tam);
 void hexaParaTexto(char* texto, char* hexa);
-
-// Adding struct to calculate hash
-struct sdesc {
-    struct shash_desc shash;
-    char ctx[];
-}
-
-static struct sdesc init_sdesc(struct crypto_shash *alg) {
-    struct sdesc sdesc;
-    int size;
-
-    size = sizeof(struct shash_desc) + crypto_shash_descsize(alg);
-    sdesc = kmalloc(size, GFP_KERNEL);
-
-    if (!sdesc) // if the struct is not allocated, out of memory error
-        return ERR_PTR(-ENOMEM)
-
-    sdesc->shash.tfm = alg;
-    sdesc->shash.flags = 0x0;
-    return sdesc;
-}
 
 static struct file_operations fops =
 {
@@ -193,18 +171,35 @@ static void moduloCrypto_decifrar(char *dados)
 
 static int moduloCrypto_hash(char *dados)
 {
-    struct sdesc sdesc;
-    int ret;
+    printk("Messagem antes do hash: %s", dados);
 
-    sdesc = init_sdesc(alg);
+    char resp[SHA1_DIG_SIZ];
+    struct shash_desc *sdesc;
 
-    if (IS_ERR(sdesc)) {
-        pr_info("trusted_key: can't alloc %s\n", hash_alg);
-        return PTR_ERR(sdesc);
-    }
+    // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
+    struct crypto_shash *tfm = crypto_alloc_shash("sha1",0,0);
 
-    ret = crypto_shash_digest(&sdesc->shash, data, datalen, digest);
+    int size, ret;
+
+    // Getting size for 
+    size = sizeof(*sdesc) + crypto_shash_descsize(tfm);
+    sdesc = kmalloc(size, GFP_KERNEL);
+    resp = kmalloc(SHA1_DIG_SIZ)
+
+    
+    sdesc->tfm = tfm;
+    sdesc->flags = CRYPTO_TFM_REQ_MAY_SLEEP;    
+
+    // if (IS_ERR(sdesc)) {
+    //     pr_info("trusted_key: can't alloc %s\n", hash_alg);
+    //     return PTR_ERR(sdesc);
+    // }
+
+    ret = crypto_shash_digest(sdesc, dados, size, resp);
     kfree(sdesc);
+
+    printk("Messagem após o hash: %s", resp);
+
     return ret;
 }
 
