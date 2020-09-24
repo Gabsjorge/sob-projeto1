@@ -1,9 +1,9 @@
-#include <linux/init.h>         
-#include <linux/module.h>       
-#include <linux/device.h>       
-#include <linux/kernel.h>       
-#include <linux/fs.h>           
-#include <linux/uaccess.h>   
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/device.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/uaccess.h>
 #include <linux/mutex.h>
 #include <linux/crypto.h>
 #include <crypto/hash.h>
@@ -171,34 +171,41 @@ static void moduloCrypto_decifrar(char *dados)
 
 static int moduloCrypto_hash(char *dados)
 {
-    printk("Messagem antes do hash: %s", dados);
+    pr_info("Messagem antes do hash: %s", dados);
 
-    char resp[SHA1_DIG_SIZ];
+    char resp[SHA1_DIG_SIZ]; // variable string that will store hash digest
     struct shash_desc *sdesc;
-
-    // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
-    struct crypto_shash *tfm = crypto_alloc_shash("sha1",0,0);
-
     int size, ret;
 
-    // Getting size for 
+    // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
+    struct crypto_shash *tfm;
+    tfm = crypto_alloc_shash("sha1",0,0);
+
+    // Failed to allocate hash handler
+    if (IS_ERR(tfm)) {
+        pr_alert("moduloCrypto: can't allocate hash handler");
+        return PTR_ERR(tfm);
+    }
+
+    // Getting size for hash transformation struct, and allocation size
     size = sizeof(*sdesc) + crypto_shash_descsize(tfm);
     sdesc = kmalloc(size, GFP_KERNEL);
-    resp = kmalloc(SHA1_DIG_SIZ)
 
-    
+    // Allocation size for hash digest response
+    resp = kmalloc(SHA1_DIG_SIZ);
+
+    // Setting the transformation struct and flags for hash handler
     sdesc->tfm = tfm;
     sdesc->flags = CRYPTO_TFM_REQ_MAY_SLEEP;    
 
-    // if (IS_ERR(sdesc)) {
-    //     pr_info("trusted_key: can't alloc %s\n", hash_alg);
-    //     return PTR_ERR(sdesc);
-    // }
-
-    ret = crypto_shash_digest(sdesc, dados, size, resp);
+    ret = crypto_shash_digest(sdesc, dados, strlen(dados), resp);
+    if (ret) {
+        pr_alert("moduloCrypto: failed to process hash");
+        return PT_ERR(ret);
+    }
     kfree(sdesc);
 
-    printk("Messagem após o hash: %s", resp);
+    pr_info("Messagem após o hash: %s", resp);
 
     return ret;
 }
