@@ -38,9 +38,9 @@ int main() {
         scanf("%i", input_op);
 
         // Menu options after choosing message send type
-        printf("Comandos: [opções] [mensagem]\n");
-        printf("Opções disponíveis:\n  c -> Cifrar\n  d - Decrifar\n  h- Gerar Hash\n");
-        printf("A mensagem pode ser qualquer coisa, desde que tenha até 254 caracteres, sendo que os dois primeiro serão o comando e um espaço.\n");
+        printf("Comandos: [opcoes] [mensagem]\n");
+        printf("Opcoes disponiveis:\n  c -> Cifrar\n  d - Decrifar\n  h- Gerar Hash\n");
+        printf("A mensagem pode ser qualquer coisa, desde que tenha ate 254 caracteres, sendo que os dois primeiro serao o comando e um espaco.\n");
         printf("Digite o comando que deseja executar:\n");
         scanf("%[^\n]%*c", messageToSend);
         // Sugested by the teacher, to set the message using memset instead of strcpy
@@ -51,7 +51,7 @@ int main() {
         messageReceived[1] = messageToSend[1];
 
 
-        printf("Mensagem enviada ao módulo: [%s].\n");
+        printf("Mensagem enviada ao modulo: [%s].\n", messageReceived);
 
         // Handle message send type chosen by user
         if (input_op == 1) {
@@ -76,7 +76,6 @@ int main() {
         perror("[ERRO] Falha ao ler mensagem vinda do dispositivo moduloCrypto.");
         return errno;
     }
-    printf("The received message is: [%s]\n", messageReceived);
 
     close(fd);                          // Closes the module file
     printf("Fim do programa de testes: moduloCrypto\n");
