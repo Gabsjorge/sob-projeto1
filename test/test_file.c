@@ -3,10 +3,9 @@
  * @author  Beatriz Nunes, Gabriela Jorge e José Pires
  * @date    30 September 2020
  * @version 0.1
- * @brief   A Linux user space program that communicates with the ebbchar.c LKM. It passes
- * a string to the LKM and reads the response from the LKM. For this example to work the device
- * must be called /dev/ebbchar.
+ * @brief   Program used for testing the moduloCrypto module created by the authors.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
