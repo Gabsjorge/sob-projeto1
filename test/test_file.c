@@ -18,7 +18,7 @@ static char messageReceived[BUFFER_LENGTH];     ///< The received message from t
 
 int main() {
     int ret, fd, input_op = 0;
-    char messageToSend[BUFFER_LENGTH], option = 'a';
+    char messageToSend[BUFFER_LENGTH], messageHexa[BUFFER_LENGTH], option = 'a';
 
     fflush(stdin);
     // Opens the module file created inside folder /dev
@@ -46,37 +46,36 @@ int main() {
         memset(messageReceived,0,BUFFER_LENGTH);
 
         // Setting operation and space before the message
-        messageReceived[0] = messageToSend[0];
-        messageReceived[1] = messageToSend[1];
+        messageHexa[0] = messageToSend[0];
+        messageHexa[1] = messageToSend[1];
 
+        if (input_op == 1) {    // Option: String
+            printf("Teste ---> entra no string");
 
-        printf("Mensagem enviada ao modulo: [%s].\n", messageReceived);
+        } else {                // Option: Hexadecimal
+            printf("Teste ---> entra no string");
+        }
 
-        // Handle message send type chosen by user
-        if (input_op == 1) {
-            
+        ret = write(fd, messageToSend, strlen(messageToSend));    // Send the string to the LKM
+        if (ret < 0) {
+            perror("[ERRO] Falha ao escrever mensagem no dispositivo moduloCrypto.");
+            return errno;
+        }
+
+        printf("Pressione ENTER para ler a resposta do dispositivo...\n");
+        getchar();
+
+        printf("Lendo do arquivo do dispositivo moduloCrypto...\n");
+        ret = read(fd, messageReceived, BUFFER_LENGTH);
+        if (ret < 0) {
+            perror("[ERRO] Falha ao ler mensagem vinda do dispositivo moduloCrypto.");
+            return errno;
         }
 
     } while(option != 'q');
 
-    
-    ret = write(fd, messageToSend, strlen(messageToSend));    // Send the string to the LKM
-    if (ret < 0) {
-        perror("[ERRO] Falha ao escrever mensagem no dispositivo moduloCrypto.");
-        return errno;
-    }
-
-    printf("Pressione ENTER para ler a resposta do dispositivo...\n");
-    getchar();
-
-    printf("Lendo do arquivo do dispositivo moduloCrypto...\n");
-    ret = read(fd, messageReceived, BUFFER_LENGTH);
-    if (ret < 0) {
-        perror("[ERRO] Falha ao ler mensagem vinda do dispositivo moduloCrypto.");
-        return errno;
-    }
-
-    close(fd);                          // Closes the module file
+    // Closes the module file
+    close(fd);
     printf("Fim do programa de testes: moduloCrypto\n");
     return 0;
 }
