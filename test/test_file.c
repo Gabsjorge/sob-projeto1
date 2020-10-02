@@ -17,7 +17,7 @@
 static char messageReceived[BUFFER_LENGTH];     ///< The received message from the moduloCrypto
 
 int main() {
-    int ret, fd, input_op = 0;
+    int ret, fd, j, input_op = 0;
     char messageToSend[BUFFER_LENGTH], messageHexa[BUFFER_LENGTH], option = 'a';
 
     fflush(stdin);
@@ -49,11 +49,33 @@ int main() {
         messageHexa[0] = messageToSend[0];
         messageHexa[1] = messageToSend[1];
 
+        /* Handle message send type chosen by user
+         * Always changing to hexa, so the process of creating the hexa variable is easier
+         * But prints the user message according to choise made earlier
+         */
         if (input_op == 1) {    // Option: String
-            printf("Teste ---> entra no string");
+
+            /* Prints the message in hexadecimal format
+             * Using i as the first hex character
+             * And j as second hex character, for each character read in messageToSend
+             */
+            for(int i = 2, j = 2; i < strlen(messageToSend); i++, j+=2)
+                sprintf(&messageHexa[j], "%02hhx", (unsigned char)messageToSend[i]);
+            messageToSend[j] = '\0';
+
+            print("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
+
+            // Prints the user message correctly
+            for(int i = 2; i < strlen(messageHexa); i++)
+                printf("%02hhx ", (unsigned char)messageToSend[i]);
+            printf("\n");
 
         } else {                // Option: Hexadecimal
-            printf("Teste ---> entra no string");
+            // No treatment is needed because user already sent message in hexadecimal format
+            strcpy(messageHexa, messageToSend);
+
+            print("Mensagem enviada ao dispositivo moduloCrypto [em hexa]:\n");
+            printf("%s\n", messageHexa);
         }
 
         ret = write(fd, messageToSend, strlen(messageToSend));    // Send the string to the LKM
