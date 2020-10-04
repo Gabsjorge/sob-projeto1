@@ -14,7 +14,7 @@
 #include <unistd.h>
 
 #define BUFFER_LENGTH 256                       ///< The buffer length
-static char messageReceived[BUFFER_LENGTH];     ///< The received message from the moduloCrypto
+static char messageReceived[BUFFER_LENGTH * 2];     ///< The received message from the moduloCrypto
 
 int main() {
     int ret, fd, j, input_op = 0;
@@ -34,16 +34,18 @@ int main() {
         printf("----- Programa Teste: moduloCrypto -----\n");
         // Gets user input for using string message or hex message
         printf("Deseja enviar em string (1) ou em hexadeximal (2)? \n");
-        scanf("%i", input_op);
+        scanf("%i", &input_op);
+        // Having problems with \n when pressing ENTER, to fix it, using a getchar helps
+        getchar();
 
         // Menu options after choosing message send type
         printf("Comandos: [opcoes] [mensagem]\n");
         printf("Opcoes disponiveis:\n  c -> Cifrar\n  d - Decrifar\n  h- Gerar Hash\n");
         printf("A mensagem pode ser qualquer coisa, desde que tenha ate 254 caracteres, sendo que os dois primeiro serao o comando e um espaco.\n");
         printf("Digite o comando que deseja executar:\n");
-        scanf("%[^\n]%*c", messageToSend);
+        scanf(" %[^\n]%*c", messageToSend);
         // Sugested by the teacher, to set the message using memset instead of strcpy
-        memset(messageReceived,0,BUFFER_LENGTH);
+        memset(messageHexa,0,BUFFER_LENGTH);
 
         // Setting operation and space before the message
         messageHexa[0] = messageToSend[0];
@@ -63,7 +65,7 @@ int main() {
                 sprintf(&messageHexa[j], "%02hhx", (unsigned char)messageToSend[i]);
             messageToSend[j] = '\0';
 
-            print("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
+            printf("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
 
             // Prints the user message correctly
             for(int i = 2; i < strlen(messageHexa); i++)
@@ -74,13 +76,13 @@ int main() {
             // No treatment is needed because user already sent message in hexadecimal format
             strcpy(messageHexa, messageToSend);
 
-            print("Mensagem enviada ao dispositivo moduloCrypto [em hexa]:\n");
+            printf("Mensagem enviada ao dispositivo moduloCrypto [em hexa]:\n");
             printf("%s\n", messageHexa);
         }
 
         ret = write(fd, messageToSend, strlen(messageToSend));    // Send the string to the LKM
         if (ret < 0) {
-            perror("[ERRO] Falha ao escrever mensagem no dispositivo moduloCrypto.");
+            perror("[ERRO] Falha ao escrever mensagem no dispositivo moduloCrypto.\n");
             return errno;
         }
 
@@ -90,10 +92,14 @@ int main() {
         printf("Lendo do arquivo do dispositivo moduloCrypto...\n");
         ret = read(fd, messageReceived, BUFFER_LENGTH);
         if (ret < 0) {
-            perror("[ERRO] Falha ao ler mensagem vinda do dispositivo moduloCrypto.");
+            perror("[ERRO] Falha ao ler mensagem vinda do dispositivo moduloCrypto.\n");
             return errno;
         }
+        printf("A mensagem recebida do modulo eh: %s\n", messageReceived);
 
+        printf("Deseja continuar os testes? (s para sim, q para sair): ");
+        scanf("%c", &option);
+        getchar();
     } while(option != 'q');
 
     // Closes the module file
