@@ -16,6 +16,7 @@
 #define CLASS_NAME "moduloCrypto"  
 #define BLOCK_SIZE 16 
 #define TAM_MAX	256
+#define SHA1_DIG_SIZ 32
 
 MODULE_LICENSE("GPL");                                       
 MODULE_AUTHOR("Beatriz Oliveira, Gabriela Jorge, José Victor Pires");                                
@@ -43,7 +44,6 @@ static int moduloCrypto_hash(char *dados);
 void textoParaHexa(char* texto, char* hexa, int tam);
 void hexaParaTexto(char* texto, char* hexa);
 static void hexdump(unsigned char *buf, unsigned int len);
-
 
 static struct file_operations fops =
 {
@@ -159,6 +159,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 		break;
 
 		case 'h':
+            pr_info("moduloCrypto: Fazendo hash dos dados convertidos");
 			moduloCrypto_hash(dados_convertidos);			
 		break;
 
@@ -341,6 +342,43 @@ out:
 
 static int moduloCrypto_hash(char *dados)
 {
+    pr_info("Messagem antes do hash: %s", dados);
+
+    char resp[SHA1_DIG_SIZ]; // variable string that will store hash digest
+    struct shash_desc *sdesc;
+    int size, ret;
+
+    // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
+    struct crypto_shash *tfm;
+    tfm = crypto_alloc_shash("sha1",0,0);
+
+    // Failed to allocate hash handler
+    if (IS_ERR(tfm)) {
+        pr_alert("moduloCrypto: can't allocate hash handler");
+        return PTR_ERR(tfm);
+    }
+
+    // Getting size for hash transformation struct, and allocation size
+    size = sizeof(*sdesc) + crypto_shash_descsize(tfm);
+    sdesc = kmalloc(size, GFP_KERNEL);
+
+    // Allocation size for hash digest response
+    resp = kmalloc(SHA1_DIG_SIZ);
+
+    // Setting the transformation struct and flags for hash handler
+    sdesc->tfm = tfm;
+    sdesc->flags = CRYPTO_TFM_REQ_MAY_SLEEP;    
+
+    ret = crypto_shash_digest(sdesc, dados, strlen(dados), resp);
+    if (ret) {
+        pr_alert("moduloCrypto: failed to process hash");
+        return PT_ERR(ret);
+    }
+    kfree(sdesc);
+
+    pr_info("Messagem após o hash: %s", resp);
+
+    return ret;
 }
 
 void hexaParaTexto(char *texto, char *hexa)
