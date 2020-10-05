@@ -8,8 +8,10 @@
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
 #include <linux/mm.h>
-#include <crypto/hash.h>
-#include <crypto/skcipher.h>
+// #include <crypto/hash.h>
+// #include <crypto/skcipher.h>
+#include <crypto/internal/hash.h>
+#include <crypto/internal/skcipher.h>
 #include <linux/scatterlist.h>
    
 #define DEVICE_NAME "moduloCrypto"   
@@ -367,14 +369,17 @@ static int moduloCrypto_hash(char *dados)
 
     // Setting the transformation struct and flags for hash handler
     sdesc->tfm = tfm;
-    sdesc->flags = CRYPTO_TFM_REQ_MAY_SLEEP;    
+    sdesc->flags = 0;
 
     ret = crypto_shash_digest(sdesc, dados, strlen(dados), resp);
     if (ret) {
         pr_alert("moduloCrypto: failed to process hash");
         return PT_ERR(ret);
     }
+
+	// Clearing the structs used for hashing
     kfree(sdesc);
+	crypto_free_shash(tfm);
 
     pr_info("Messagem após o hash: %s", resp);
 
