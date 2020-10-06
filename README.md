@@ -10,14 +10,14 @@ Passos para execução do módulo:
 	- test_file.c [2]
 	
 	Observações: [1] Ambos os arquivos estão na pasta moduloCriptografia.
-				 [2] Está na pasta test.	
+			[2] Está na pasta test.	
 			
-2º) Entrar com o comando sudo su para dar permissão de administrador;
+2º) No terminal do Linux entrar com o comando sudo su para dar permissão de administrador;
 
 	- $username@nome-da-maquina:~$sudo su
       [sudo] password for username: digite a senha
 
-3º) No terminal do Linux entrar na pasta onde estão salvos os arquivos;
+3º) Entrar na pasta onde estão salvos os arquivos;
 
 	- cd caminho/ da/ pasta/
 	
@@ -27,7 +27,7 @@ Passos para execução do módulo:
 
 	-  insmod moduloCrypto.ko iv="0123456789ABCDEF" key="0123456789ABCDEF"
 	
-	Observação: iv e key podem conter outros valores de até 16, este é só um exemplo.
+	Observação: iv e key podem conter outros valores de até 16 bytes, este é só um exemplo.
 
 6º) Agora para executar o programa teste para ver o modulo em funcionamento digite:
 
