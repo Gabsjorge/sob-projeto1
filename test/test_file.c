@@ -61,16 +61,22 @@ int main() {
              * Using i as the first hex character
              * And j as second hex character, for each character read in messageToSend
              */
-            for(int i = 2, j = 2; i < strlen(messageToSend); i++, j+=2)
-                snprintf(&messageHexa[j], BUFFER_LENGTH-1, "%02hhx", (unsigned char)messageToSend[i]);
-            messageToSend[j] = '\0';
+            //for(int i = 2, j = 2; i < strlen(messageToSend); i++, j+=2)
+            //    snprintf(&messageHexa[j], BUFFER_LENGTH-1, "%02hhx", (unsigned char)messageToSend[i]);
+            //messageToSend[j] = '\0';
 
-            printf("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
+            //printf("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
 
             // Prints the user message correctly
-            for(int i = 2; i < strlen(messageHexa); i++)
-                printf("%02hhx ", (unsigned char)messageToSend[i]);
-            printf("\n");
+            //for(int i = 2; i < strlen(messageHexa); i++)
+            //    printf("%02hhx ", (unsigned char)messageToSend[i]);
+            //printf("\n");
+
+            // In case the current fix doesn't work, make no treatment
+            strcpy(messageHexa, messageToSend);
+
+            printf("Mensagem enviada ao dispositivo moduloCrypto [em hexa]:\n");
+            printf("%s\n", messageHexa);
 
         } else {                // Option: Hexadecimal
             // No treatment is needed because user already sent message in hexadecimal format
