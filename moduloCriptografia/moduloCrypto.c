@@ -7,17 +7,15 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
-#include <linux/mm.h>
+#include <linux/mm.h>                        
 #include <crypto/hash.h>
 #include <crypto/skcipher.h>
 #include <linux/scatterlist.h>
-#include <crypto/internal/hash.h>
 
 #define DEVICE_NAME "moduloCrypto"
 #define CLASS_NAME "moduloCrypto"
 #define SIZE_BLOCK 16
 #define TAM_MAX	256
-#define SHA1_DIG_SIZ 32
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Beatriz Oliveira, Gabriela Jorge, José Victor Pires");
@@ -31,8 +29,8 @@ static struct class*  moduloCryptoClass = NULL;
 static struct device* moduloCryptoDevice = NULL;
 static DEFINE_MUTEX(moduloCrypto_mutex);
 static char *key_aux;
-static char *key = "0123456789ABCDEF";
-static char *iv = "0123456789ABCDEF";
+static char *key = "mensagem12345678";
+static char *iv = "mensagem12345678";
 module_param(key, charp, 0000);		//To allow arguments to be passed to your module, declare the variables that will take the values of the command line
 module_param(iv, charp, 0000);	//arguments as global and then use the module_param() macro, (defined in linux/moduleparam.h) to set the mechanism up
 
@@ -41,10 +39,11 @@ static int     dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 static int moduloCrypto_cifrarEDecifrar(char dados[], int tam, char op);
-static int moduloCrypto_hash(char *dados);
+static int moduloCrypto_hash(char data[], int datalen);
+static int calc_hash(struct crypto_shash *alg, const unsigned char *data, unsigned int datalen, unsigned char *digest);
+static struct sdesc *init_sdesc(struct crypto_shash *alg);
 void textoParaHexa(char* texto, char* hexa, int tam);
 void hexaParaTexto(char* texto, char* hexa);
-//static void hexdump(unsigned char *buf, unsigned int len);
 
 
 static struct file_operations fops =
@@ -55,12 +54,14 @@ static struct file_operations fops =
     .release = dev_release,
 };
 
+struct sdesc {
+    struct shash_desc shash;
+    char ctx[];
+};
 
 static int __init moduloCrypto_init(void) {
 
 	int tam_key, tam_iv, i;
-
-  memset(message, 0, TAM_MAX);
 
     printk(KERN_INFO "moduloCrypto: Initializing the moduloCrypto module\n");
 
@@ -156,7 +157,7 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     }
 }
 
-static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {   //n esta completa
+static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset) {   
 
 	int i, retorno;
 	char operacao, dados_convertidos[TAM_MAX] = {0}, dados[TAM_MAX] = {0};
@@ -169,40 +170,33 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 	{
 		dados[i] = buffer[i+2];
 	}
-
+	dados[len] = 0;
 
 	hexaParaTexto(dados_convertidos, dados);
-
-  for(i = 0; i < TAM_MAX; i++)
-	{
-    if(i >= len)
-    {
-      	dados_convertidos[i] = 0;
-    }
-	}
 
 	pr_info("moduloCrypto: Converted data: %s\n", dados_convertidos);
 
 	pr_info("moduloCrypto: Received data: %s\n", dados);
 
-	pr_info("moduloCrypto: Operation: %c\n", operacao);
+	pr_info("moduloCrypto:Operation: %c\n", operacao);
 
 	switch(operacao){
 		case 'c':
-			pr_info("moduloCrypto: Entrou cifrar dev_write\n");
+			pr_info("moduloCrypto: Entrou cifrar devwrite\n");
 			retorno = moduloCrypto_cifrarEDecifrar(dados_convertidos, (len - 2), operacao);
-			pr_info("moduloCrypto: Finished encryption - message: %s\n", message);
+			pr_info("moduloCrypto: Terminou de cifrar - message: %s\n", message);
 		break;
 
 		case 'd':
-			pr_info("moduloCrypto: Entrou decifrar dev_write\n");
+			pr_info("moduloCrypto: Entrou decifrar devwrite\n");
 			retorno = moduloCrypto_cifrarEDecifrar(dados_convertidos, (len - 2), operacao);
-      pr_info("moduloCrypto: Finished dencryption - message: %s\n", message);
+			pr_info("moduloCrypto: Terminou de decifrar - message: %s\n", message);
 		break;
 
 		case 'h':
-      pr_info("moduloCrypto: Entrou hash dev_write\n");
-			moduloCrypto_hash(dados_convertidos);
+			pr_info("moduloCrypto: Entrou hash devwrite\n");
+			moduloCrypto_hash(dados_convertidos, (len-2));
+			pr_info("moduloCrypto: Terminou hash - message: %s\n", message);
 		break;
 
 		default:
@@ -212,8 +206,8 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
 	}
 
 	//pr_info("Message: %s\n", message);
-  size_of_message = strlen(message);
 	message[size_of_message] = '\0';
+
 
 	printk(KERN_INFO "moduloCrypto: Received %zu characters from the user\n", len);
 
@@ -229,7 +223,7 @@ static int dev_release(struct inode *inodep, struct file *filep) {
    return 0;
 }
 
-static int moduloCrypto_cifrarEDecifrar(char dados[], int tam, char op) //se der problema - pode ser referente ao tamanho da mensagem
+static int moduloCrypto_cifrarEDecifrar(char dados[], int tam, char op) 
 {
 	char *iv_aux = NULL;
 	char *scratchpad = NULL;
@@ -243,9 +237,9 @@ static int moduloCrypto_cifrarEDecifrar(char dados[], int tam, char op) //se der
 
 
 	pr_info("moduloCrypto_cifrarEDecifrar: Entrou...\n");
-	pr_info("moduloCrypto_cifrarEDecifrar: Dados - %s\n", dados);
+	pr_info("moduloCrypto_cifrarEDecifrar: Converted data: %s\n", dados);
 	pr_info("moduloCrypto_cifrarEDecifrar: Tam: %d\n", tam);
-	pr_info("moduloCrypto_cifrarEDecifrar: Op: %c\n", op);
+	pr_info("moduloCrypto_cifrarEDecifrar: Operation: %c\n", op);
 
 	iv_aux = kmalloc(SIZE_BLOCK, GFP_KERNEL);
 	for(i = 0; i < SIZE_BLOCK; i++)
@@ -351,45 +345,43 @@ static int moduloCrypto_cifrarEDecifrar(char dados[], int tam, char op) //se der
 	switch (op) //diferenciando se eh para cifrar ou decifrar
 	{
 		case 'c':
-			pr_info("moduloCrypto_cifrarEDecifrar: Entrou cifrar\n");
+			pr_info("moduloCrypto_cifrarEDecifrar: Entrou cifrar...\n");
 			/*int crypto_skcipher_encrypt(struct skcipher_request * req)
 			struct skcipher_request * req
 			req - reference to the skcipher_request handle that holds all information needed to perform the cipher operation
 			*/
 			ret = crypto_skcipher_encrypt(req);
 			if(ret){
-				pr_info("moduloCrypto_cifrarEDecifrar: Failed cryption!\n");
+				pr_info("moduloCrypto_cifrarEDecifrar: Cifrar falhou!\n");
 				goto out;
 			}
 			else
 			{
-				pr_info("moduloCrypto_cifrarEDecifrar: Succeed cryption!\n");
+				pr_info("moduloCrypto_cifrarEDecifrar: Cifrou com sucesso!\n");
 			}
 			break;
 		case 'd':
-			pr_info("moduloCrypto_cifrarEDecifrar: Entrou decifrar\n");
+			pr_info("moduloCrypto_cifrarEDecifrar: Entrou decifrar...\n");
 			/*int crypto_skcipher_decrypt(struct skcipher_request * req)
 			struct skcipher_request * req
 			req - reference to the skcipher_request handle that holds all information needed to perform the cipher operation
 			*/
 			ret = crypto_skcipher_decrypt(req);
 			if(ret){
-				pr_info("moduloCrypto_cifrarEDecifrar: Failed decryption!\n");
+				pr_info("moduloCrypto_cifrarEDecifrar: Decifrar falhou!\n");
 				goto out;
 			}
-      else
+			else
 			{
-				pr_info("moduloCrypto_cifrarEDecifrar: Succeed decryption!\n");
+				pr_info("moduloCrypto_cifrarEDecifrar: Decifrou com sucesso!\n");
 			}
 			break;
 	}
 
 	dados_dpsOp = sg_virt(&op_sg); //sg_virt nesse caso retorna o endereço da scatterlist de destino da funçao skcipher_request_set_crypt()
 
-  hexdump(dados_dpsOp, tam_scratchpad); //para depuração dos dados
-
 	textoParaHexa(dados_dpsOp, message, tam_scratchpad);
-
+	size_of_message = 2*tam_scratchpad;
 	pr_info("moduloCrypto_cifrarEDecifrar: Terminou...\n");
 out:
 	if (skcipher)
@@ -408,50 +400,68 @@ out:
 
 }
 
-static int moduloCrypto_hash(char *dados)
+static int moduloCrypto_hash(char data[], int datalen)
 {
+    struct crypto_shash *tfm;
+    unsigned char *resultado_hash;
+    int ret;
 
-  pr_info("Messagem antes do hash: %s", dados);
+    pr_info("moduloCrypto_hash: iniciou... \n");
 
-  char resp[SHA1_DIG_SIZ]; // variable string that will store hash digest
-  struct shash_desc *sdesc;
-  int size, ret =1;
+    resultado_hash = kmalloc(sizeof(unsigned char) * 20, GFP_KERNEL);
 
-  // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
-  struct crypto_shash *tfm;
-  tfm = crypto_alloc_shash("sha1",0,0);
+    tfm = crypto_alloc_shash("sha1", 0, 0);
+    if (IS_ERR(tfm)) {
+            pr_info("can't alloc alg sha1\n");
+            return PTR_ERR(tfm);
+    }
 
-  // Failed to allocate hash handler
-  if (IS_ERR(tfm)) {
-      pr_alert("moduloCrypto: can't allocate hash handler");
-      return PTR_ERR((int)tfm);
-  }
+    ret = calc_hash(tfm, data, datalen, resultado_hash);
 
-  // Getting size for hash transformation struct, and allocation size
-  size = sizeof(*sdesc) + crypto_shash_descsize(tfm);
-  sdesc = kmalloc(size, GFP_KERNEL);
+    textoParaHexa(resultado_hash, message, 20);
+    size_of_message = 40;
 
-  // Allocation size for hash digest response
-  resp = kmalloc(SHA1_DIG_SIZ, GFP_KERNEL);
+    pr_info("moduloCrypto_hash: message: %s\n", message);
 
-  // Setting the transformation struct and flags for hash handler
-  sdesc->tfm = tfm;
-  sdesc->flag = 0;
+    pr_info("moduloCrypto_hash: terminou... \n");
 
-  ret = crypto_shash_digest(sdesc, dados, strlen(dados), resp);
-  if (ret) {
-      pr_alert("moduloCrypto: failed to process hash");
-      return PTR_ERR(ret);
-  }
+    crypto_free_shash(tfm);
+    if(resultado_hash)
+    	kfree(resultado_hash);
 
-// Clearing the structs used for hashing
-  kfree(sdesc);
-crypto_free_shash(tfm);
-
-  pr_info("Messagem após o hash: %s", resp);
-
-  return ret;
+    return ret;
 }
+
+static struct sdesc *init_sdesc(struct crypto_shash *alg)
+{
+    struct sdesc *sdesc;
+    int size;
+
+    size = sizeof(struct shash_desc) + crypto_shash_descsize(alg);
+    sdesc = kmalloc(size, GFP_KERNEL);
+    if (!sdesc)
+        return ERR_PTR(-ENOMEM);
+    sdesc->shash.tfm = alg;
+    return sdesc;
+}
+
+static int calc_hash(struct crypto_shash *alg, const unsigned char *data, unsigned int datalen, unsigned char *digest)
+{
+    struct sdesc *sdesc;
+    int ret;
+
+    sdesc = init_sdesc(alg);
+    if (IS_ERR(sdesc))
+    {
+        pr_info("can't alloc sdesc\n");
+        return PTR_ERR(sdesc);
+    }
+
+    ret = crypto_shash_digest(&sdesc->shash, data, datalen, digest);
+    kfree(sdesc);
+    return ret;
+}
+
 
 void hexaParaTexto(char *texto, char *hexa)
 {
@@ -485,16 +495,6 @@ void textoParaHexa(char* texto, char* hexa, int tam)
 		i+=2;
 	}
 	hexa[i] = 0;
-}
-
-static void hexdump(unsigned char *buf, unsigned int tam)
-{
-   while (tam--)
-   {
-		printk("%02x", *buf++);
-   }
-
-	printk("\n");
 }
 
 module_init(moduloCrypto_init);
