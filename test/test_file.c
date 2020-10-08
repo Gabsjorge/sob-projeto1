@@ -62,7 +62,7 @@ int main() {
              * And j as second hex character, for each character read in messageToSend
              */
             for(int i = 2, j = 2; i < strlen(messageToSend); i++, j+=2)
-                sprintf(&messageHexa[j], "%02hhx", (unsigned char)messageToSend[i]);
+                snprintf(&messageHexa[j], BUFFER_LENGTH-1, "%02hhx", (unsigned char)messageToSend[i]);
             messageToSend[j] = '\0';
 
             printf("Mensagem enviada ao dispositivo moduloCrypto [em string]:\n");
