@@ -415,7 +415,7 @@ static int moduloCrypto_hash(char *dados)
 
   char resp[SHA1_DIG_SIZ]; // variable string that will store hash digest
   struct shash_desc *sdesc;
-  int size, ret =1;
+  int size, ret;
 
   // Allocating transformation struct to have the synchronous hash => algorithm, type (check /proc/crypto on "sha1"), mask
   struct crypto_shash *tfm;
@@ -424,11 +424,11 @@ static int moduloCrypto_hash(char *dados)
   // Failed to allocate hash handler
   if (IS_ERR(tfm)) {
       pr_alert("moduloCrypto: can't allocate hash handler");
-      return PTR_ERR((int)tfm);
+      return PTR_ERR(tfm);
   }
 
   // Getting size for hash transformation struct, and allocation size
-  size = sizeof(*sdesc) + crypto_shash_descsize(tfm);
+  size = sizeof(struct shash_desc) + crypto_shash_descsize(tfm);
   sdesc = kmalloc(size, GFP_KERNEL);
 
   // Allocation size for hash digest response
@@ -436,7 +436,6 @@ static int moduloCrypto_hash(char *dados)
 
   // Setting the transformation struct and flags for hash handler
   sdesc->tfm = tfm;
-  sdesc->flag = 0;
 
   ret = crypto_shash_digest(sdesc, dados, strlen(dados), resp);
   if (ret) {
@@ -446,7 +445,7 @@ static int moduloCrypto_hash(char *dados)
 
 // Clearing the structs used for hashing
   kfree(sdesc);
-crypto_free_shash(tfm);
+  crypto_free_shash(tfm);
 
   pr_info("Messagem após o hash: %s", resp);
 
